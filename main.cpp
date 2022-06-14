@@ -48,7 +48,7 @@ int main()
 	auto [pubKey, privKey] = Signatures::extractKeys(key, "testpwd");
 
 	// generate keys test
-	{	
+	{
 		std::istringstream iPriv(privKey);
 		Poco::Crypto::RSAKey key(0, &iPriv,  "testpwd");
 		std::ostringstream strPub;
@@ -70,17 +70,60 @@ int main()
 			std::boolalpha << Signatures::verifySignature(msg, sig, keyPub) << "\n";
 	}
 
-	// test hashing
+	// tx testing
 	{
-		auto tx1 = Tx("Ross", "Chandler", 10);
-		auto tx2 = Tx("Chandler", "Monica", 5);
+		const auto rossKey = Signatures::generateKeyPair();
+		const auto chandlerKey = Signatures::generateKeyPair();
+		const auto moniKey = Signatures::generateKeyPair();
+		const auto joeyKey = Signatures::generateKeyPair();
+
+		auto tx1 = Tx();
+		tx1.addInput(TxSource{rossKey, 10});
+		tx1.addOutput(TxDestination{chandlerKey, 10});
+		tx1.sign(rossKey);
+		std::cout << "tx1 valid: " << std::boolalpha << tx1.isValid() << "\n";
+
+		auto tx2 = Tx();
+		tx2.addInput(TxSource{moniKey, 12});
+		tx2.addOutput(TxDestination{chandlerKey, 12});
+		tx2.sign(moniKey);
+		std::cout << "tx2 valid: " << std::boolalpha << tx2.isValid() << "\n";
+
 		auto txBlock1 = TxBlock(nullptr);
+		txBlock1.addTx(tx1);
+		txBlock1.addTx(tx2);
+		std::cout << "txBlock1 valid: " << std::boolalpha << txBlock1.isValid() << "\n";
 
-		auto tx3 = Tx("Ross", "Joey", 2);
-		auto tx4 = Tx("Rachel", "Ross", 5);
+		auto tx3 = Tx();
+		tx3.addInput(TxSource{chandlerKey, 4});
+		tx3.addOutput(TxDestination{joeyKey, 4});
+		tx3.sign(chandlerKey);
+		std::cout << "tx3 valid: " << std::boolalpha << tx3.isValid() << "\n";
+
+		auto tx4 = Tx();
+		tx4.addInput(TxSource{moniKey, 17});
+		tx4.addOutput(TxDestination{rossKey, 17});
+		tx4.sign(moniKey);
+		std::cout << "tx4 valid: " << std::boolalpha << tx4.isValid() << "\n";
+
 		auto txBlock2 = TxBlock(&txBlock1);
+		txBlock1.addTx(tx3);
+		txBlock1.addTx(tx4);
+		std::cout << "txBlock2 valid: " << std::boolalpha << txBlock2.isValid() << "\n";
 
-		
+		auto invalidTx = Tx();
+		invalidTx.addInput(TxSource{joeyKey, 2});
+		invalidTx.addOutput(TxDestination{moniKey, 2});
+		invalidTx.sign(chandlerKey);
+		std::cout << "wrong signature detected: "
+			<< std::boolalpha << (not invalidTx.isValid()) << "\n";
+
+		auto invalidBlock = TxBlock(txBlock2);
+		std::cout << "block valid before invalid tx: "
+			<< std::boolalpha << invalidBlock.isValid() << "\n";
+		invalidBlock.addTx(invalidTx);
+		std::cout << "block invalid after invalid tx: "
+			<< std::boolalpha << (not invalidBlock.isValid()) << "\n";
 	}
 
     return 0;
